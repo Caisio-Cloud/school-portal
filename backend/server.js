@@ -5,6 +5,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const pgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
+const path = require('path');
 
 const app = express();
 
@@ -15,13 +16,9 @@ const pool = new Pool({
 });
 
 // Middleware - CORS configuration
-// Update with YOUR Netlify URL: https://snnhsportal.netlify.app
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://snnhsportal.netlify.app',  // Your Netlify URL
-        'http://localhost:3000'             // Local development
-      ]
+    ? ['https://snnhsportal.netlify.app', 'http://localhost:3000']
     : 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200
@@ -187,23 +184,14 @@ async function initializeDatabase() {
     console.log('✅ Admin user seeded (username: admin, password: admin123)');
   } catch (error) {
     console.error('❌ Database initialization error:', error);
-    throw error; // Re-throw to stop server if DB fails
+    throw error;
   }
 }
 
-// Import routes
-const authRoutes = require('./routes/auth')(pool);
-const adminRoutes = require('./routes/admin')(pool);
-const studentRoutes = require('./routes/student')(pool);
-const facultyRoutes = require('./routes/faculty')(pool);
+// SIMPLE ROUTES FOR TESTING - Replace with actual routes later
+// ============================================================
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/student', studentRoutes);
-app.use('/api/faculty', facultyRoutes);
-
-// Health check endpoint for Railway
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -212,17 +200,78 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Debug endpoint to check environment variables
-app.get('/api/debug-env', (req, res) => {
-  res.json({
-    nodeVersion: process.version,
-    port: process.env.PORT,
-    nodeEnv: process.env.NODE_ENV,
-    databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set',
-    sessionSecret: process.env.SESSION_SECRET ? 'Set' : 'Not set',
-    frontendUrl: process.env.FRONTEND_URL || 'Not set',
-    railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'Not set'
-  });
+// Simple auth routes for testing
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (username === 'admin' && password === 'admin123') {
+      req.session.userId = 1;
+      req.session.accountType = 'Admin';
+      req.session.fullName = 'System Administrator';
+      
+      return res.json({
+        message: 'Login successful',
+        user: {
+          id: 1,
+          fullName: 'System Administrator',
+          accountType: 'Admin'
+        }
+      });
+    }
+    
+    res.status(401).json({ error: 'Invalid credentials' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { fullName, accountType, username, password, grade, section, lrn } = req.body;
+    
+    // Simple validation
+    if (!fullName || !accountType || !username || !password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    res.status(201).json({ 
+      message: 'Registration submitted. Pending admin approval.',
+      data: { fullName, accountType, username }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/auth/check', (req, res) => {
+  if (req.session.userId) {
+    res.json({
+      authenticated: true,
+      user: {
+        id: req.session.userId,
+        fullName: req.session.fullName,
+        accountType: req.session.accountType
+      }
+    });
+  } else {
+    res.json({ authenticated: false });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ message: 'Logged out' });
+});
+
+// Admin routes (simple version)
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, fullName, username, accountType, status FROM Users');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // Root endpoint
@@ -232,12 +281,14 @@ app.get('/', (req, res) => {
     status: 'Running',
     environment: process.env.NODE_ENV || 'development',
     endpoints: {
-      auth: '/api/auth',
-      admin: '/api/admin',
-      student: '/api/student',
-      faculty: '/api/faculty',
-      health: '/api/health',
-      debug: '/api/debug-env'
+      auth: {
+        login: 'POST /api/auth/login',
+        register: 'POST /api/auth/register',
+        check: 'GET /api/auth/check',
+        logout: 'POST /api/auth/logout'
+      },
+      admin: 'GET /api/admin/users',
+      health: 'GET /api/health'
     },
     adminCredentials: {
       username: 'admin',
@@ -274,7 +325,6 @@ async function startServer() {
       console.log(`🔧 Port: ${PORT}`);
       console.log(`🗄️  Database: ${process.env.DATABASE_URL ? 'Connected ✅' : 'Not configured ❌'}`);
       console.log(`🔑 Session Secret: ${process.env.SESSION_SECRET ? 'Set ✅' : 'Not set ⚠️'}`);
-      console.log(`🎯 CORS Origin: ${corsOptions.origin}`);
       console.log('='.repeat(50));
       console.log(`👤 Admin Login:`);
       console.log(`   Username: admin`);
@@ -283,7 +333,7 @@ async function startServer() {
       console.log(`📊 Endpoints:`);
       console.log(`   Health Check: http://0.0.0.0:${PORT}/api/health`);
       console.log(`   API Root: http://0.0.0.0:${PORT}/`);
-      console.log(`   Debug Info: http://0.0.0.0:${PORT}/api/debug-env`);
+      console.log(`   Admin Login: POST http://0.0.0.0:${PORT}/api/auth/login`);
       console.log('='.repeat(50));
     });
   } catch (error) {
