@@ -1,10 +1,9 @@
-# Use Node.js 18 Alpine (smaller image)
 FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy backend package files
+# Copy package files
 COPY backend/package*.json ./
 
 # Install dependencies
