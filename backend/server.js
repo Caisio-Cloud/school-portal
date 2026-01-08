@@ -14,10 +14,14 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Middleware
+// Middleware - CORS configuration
+// Update with YOUR Netlify URL: https://snnhsportal.netlify.app
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://school-portal.netlify.app', 'http://localhost:3000']
+    ? [
+        'https://snnhsportal.netlify.app',  // Your Netlify URL
+        'http://localhost:3000'             // Local development
+      ]
     : 'http://localhost:3000',
   credentials: true,
   optionsSuccessStatus: 200
@@ -48,6 +52,8 @@ app.use(flash());
 // Database initialization
 async function initializeDatabase() {
   try {
+    console.log('Initializing database...');
+    
     // Create tables
     await pool.query(`
       CREATE TABLE IF NOT EXISTS Users (
@@ -167,9 +173,21 @@ async function initializeDatabase() {
       )
     `);
 
-    console.log('Database tables created/verified');
+    // Seed admin user if not exists
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    
+    await pool.query(`
+      INSERT INTO Users (fullName, username, password, accountType, status)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (username) DO NOTHING
+    `, ['System Administrator', 'admin', hashedPassword, 'Admin', 'Approved']);
+
+    console.log('✅ Database tables created/verified');
+    console.log('✅ Admin user seeded (username: admin, password: admin123)');
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error('❌ Database initialization error:', error);
+    throw error; // Re-throw to stop server if DB fails
   }
 }
 
@@ -187,7 +205,24 @@ app.use('/api/faculty', facultyRoutes);
 
 // Health check endpoint for Railway
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Debug endpoint to check environment variables
+app.get('/api/debug-env', (req, res) => {
+  res.json({
+    nodeVersion: process.version,
+    port: process.env.PORT,
+    nodeEnv: process.env.NODE_ENV,
+    databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set',
+    sessionSecret: process.env.SESSION_SECRET ? 'Set' : 'Not set',
+    frontendUrl: process.env.FRONTEND_URL || 'Not set',
+    railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN || 'Not set'
+  });
 });
 
 // Root endpoint
@@ -195,21 +230,67 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'School Portal API',
     status: 'Running',
-    documentation: '/api/[auth|admin|student|faculty]'
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      auth: '/api/auth',
+      admin: '/api/admin',
+      student: '/api/student',
+      faculty: '/api/faculty',
+      health: '/api/health',
+      debug: '/api/debug-env'
+    },
+    adminCredentials: {
+      username: 'admin',
+      password: 'admin123'
+    }
   });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5000;
 
 // Initialize and start server
 async function startServer() {
-  await initializeDatabase();
-  
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
-  });
+  try {
+    await initializeDatabase();
+    
+    // FIXED: Added '0.0.0.0' for Docker/container compatibility
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('='.repeat(50));
+      console.log(`✅ School Portal Backend Started Successfully`);
+      console.log('='.repeat(50));
+      console.log(`📡 Server URL: http://0.0.0.0:${PORT}`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔧 Port: ${PORT}`);
+      console.log(`🗄️  Database: ${process.env.DATABASE_URL ? 'Connected ✅' : 'Not configured ❌'}`);
+      console.log(`🔑 Session Secret: ${process.env.SESSION_SECRET ? 'Set ✅' : 'Not set ⚠️'}`);
+      console.log(`🎯 CORS Origin: ${corsOptions.origin}`);
+      console.log('='.repeat(50));
+      console.log(`👤 Admin Login:`);
+      console.log(`   Username: admin`);
+      console.log(`   Password: admin123`);
+      console.log('='.repeat(50));
+      console.log(`📊 Endpoints:`);
+      console.log(`   Health Check: http://0.0.0.0:${PORT}/api/health`);
+      console.log(`   API Root: http://0.0.0.0:${PORT}/`);
+      console.log(`   Debug Info: http://0.0.0.0:${PORT}/api/debug-env`);
+      console.log('='.repeat(50));
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
 }
 
-startServer().catch(console.error);
+// Start the server
+startServer();
