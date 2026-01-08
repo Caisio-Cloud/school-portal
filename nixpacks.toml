@@ -1,5 +1,19 @@
+[provider]
+# Explicitly tell Nixpacks this is a Node.js app
+provider = "node"
+
 [phases.setup]
+# This will install Node.js automatically
+cmds = []
+
+[phases.install]
+# Install dependencies after Node.js is available
 cmds = ["cd backend && npm install"]
 
 [start]
+# Start command
 cmd = "cd backend && node server.js"
+
+[variables]
+# Set Node.js version
+NODE_VERSION = "18"
