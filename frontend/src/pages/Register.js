@@ -94,4 +94,95 @@ export default function Register() {
                 label="Grade"
                 name="grade"
                 value={formData.grade}
-               
+                onChange={handleChange}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="Section"
+                name="section"
+                value={formData.section}
+                onChange={handleChange}
+                margin="normal"
+                required
+              />
+              <TextField
+                fullWidth
+                label="LRN"
+                name="lrn"
+                value={formData.lrn}
+                onChange={handleChange}
+                margin="normal"
+                required
+              />
+            </>
+          );
+        }
+        return (
+          <Typography>
+            Faculty accounts don't require academic information.
+          </Typography>
+        );
+      case 2:
+        return (
+          <>
+            <TextField
+              fullWidth
+              label="Username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+          </>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Paper sx={{ p: 4 }}>
+        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        <Box sx={{ mb: 3 }}>
+          {renderStepContent(activeStep)}
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Button
+            disabled={activeStep === 0}
+            onClick={handleBack}
+          >
+            Back
+          </Button>
+          <Button
+            variant="contained"
+            onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
+          >
+            {activeStep === steps.length - 1 ? 'Register' : 'Next'}
+          </Button>
+        </Box>
+      </Paper>
+    </Container>
+  );
+}
