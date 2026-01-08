@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+
+[[services]]
+name = "school-portal-backend"
+type = "web"
+port = 5000
