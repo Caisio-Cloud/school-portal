@@ -7,6 +7,4 @@ RUN npm install --production
 COPY backend/ ./
 
 EXPOSE 5000
-
-# Make sure backend/package.json has: "start": "node server.js"
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
